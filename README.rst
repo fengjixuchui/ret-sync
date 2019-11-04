@@ -2,160 +2,191 @@
 ret-sync
 ========
 
-**ret-sync** stands for Reverse-Engineering Tools synchronization. It's a set of plugins that help to synchronize a debugging session (WinDbg/GDB/LLDB/OllyDbg/OllyDbg2/x64dbg) with IDA disassembler. The underlying idea is simple: take the best from both worlds (static and dynamic analysis).
+**ret-sync** stands for Reverse-Engineering Tools SYNChronization. It is a set
+of plugins that help to synchronize a debugging session
+(WinDbg/GDB/LLDB/OllyDbg/OllyDbg2/x64dbg) with IDA/Ghidra disassemblers. The
+underlying idea is simple: take the best from both worlds (static and dynamic
+analysis).
 
-From debuggers and dynamic analysis we got:
+Debuggers and dynamic analysis provide us with:
 
-* local view, with live dynamic context (registers, memory, etc.)
-* built-in specialized features/API (ex: WinDbg's !peb, !drvobj, !address, etc.)
+* local view, with live dynamic context (registers, memory, *etc.*)
+* built-in specialized features/API (ex: WinDbg's ``!peb``, ``!drvobj``, ``!address``, *etc.*)
 
 
-From IDA and static analysis we got:
+Disassemblers and static analysis provide us with:
 
 * macro view over modules
-* code analysis, signatures, types, etc.
+* code analysis, signatures, types, *etc.*
 * fancy graph view
-* Hex-Rays pseudocode view
-* persistent storage of knowledge within IDBs
+* decompilation
+* persistent storage of knowledge within IDBs/GPRs
 
 
-Keys features:
+Key features:
 
-* Pass data (comment, command output) from debugger to disassembler (IDA)
+* Pass data (comment, command output) from debugger to disassembler
 * Multiple IDBs can be synced at the same time allowing to easily trace through multiple modules
 * No need to deal with ASLR, addresses are rebased on-the-fly
-* IDBs and debugger can be on different hosts
+* Disassembler and debugger can be on different hosts
 
 
 **ret-sync** is a fork of `qb-sync <https://github.com/quarkslab/qb-sync>`_ that I developed and maintained during my stay at `Quarkslab <http://www.quarkslab.com>`_.
 
 
 Below we detail most of the commands for IDA/Windbg but most concepts apply to all debuggers so
-please read the WinDbg section first even if you want to work with other debugggers.
+please read the WinDbg section first even if you want to work with other debuggers.
 
 
 Content
 -------
 
+- ``ext_ida`` : IDA plugin
 - ``ext_windbg/sync``: WinDbg extension source files, once built: ``sync.dll``
 - ``ext_gdb/sync.py``: GDB plugin
 - ``ext_lldb/sync.py``: LLDB plugin
 - ``ext_olly1``: OllyDbg 1.10 plugin
 - ``ext_olly2``: OllyDbg v2 plugin
 - ``ext_x64dbg``: x64dbg plugin
-
-- ``ext_ida/SyncPlugin.py``: IDA plugin, receive async events from broker
-- ``ext_ida/broker.py``:
-
-  * bind a socket on a random port
-  * connect to dispatcher
-  * just a socket->stdout event pump
-
-- ``ext_ida/dispatcher.py``:
-
-  * bind a TCP socket on localhost:9100 by default (see "Configuration file"),
-  * receive events from a debugger
-  * dispatch events to appropriate idb through their broker
-
+- ``ext_ghidra``: Ghidra plugin
 
 
 
 Prerequisites
 -------------
 
-Since IDA 6.9, IDAPython moved from PySide to PyQt5. No prerequisite in that situation.
-
-For owner of older versions, this plugin makes use of PySide (Python + Qt) binding. Depending on your version (PySide is shipped by default since IDA 6.6), you may need to look at:
-
-- http://www.hex-rays.com/products/ida/support/download.shtml
-- for installation notes see: http://www.hexblog.com/?p=333
+IDA 7.x branch is required. For older versions (6.9x) please see archived
+release ``ida6.9x``.
 
 A development environment (preferably Visual Studio 2017) is required
-to build the WinDbg's extension (see "**Build it**" section).
+to build the WinDbg extension (see "**Build it**" section).
 
 Python is required by various scripts. ``argparse`` is
 included in Python standard libraries for release >= 2.7.
-
-
-Global shortcuts
-----------------
-
-* ``Ctrl-Shift-S``  - Toggle global syncing
-* ``Ctrl-H``  - Toggle Hex-Rays syncing
-
-Two buttons are also available in the Debug toolbar.
+Python 2 and Python 3 are supported.
 
 
 
 Binary release
 --------------
 
-Pre-built binaries are proposed through an ``Azure DevOps`` pipeline: |Build Status| . Simply select the last build and check the ``Artifacts`` button.
+Pre-built binaries for WinDbg/OllyDbg/OllyDbg2/x64dbg debuggers are proposed
+through an ``Azure DevOps`` pipeline: |Build Status| . Simply select the last
+build and check the ``Artifacts`` button.
 
 .. |Build Status| image:: https://dev.azure.com/bootlegdev/ret-sync-release/_apis/build/status/ret-sync-release-CI?branchName=master
    :target: https://dev.azure.com/bootlegdev/ret-sync-release/_build/latest?definitionId=8?branchName=master
 
 
-WinDbg
-------
+
+Configuration file
+------------------
+
+Extensions/plugins check for a configuration file named ``.sync`` in the user's
+home directory. (The IDA plugin also looks for the configuration file in the
+IDB's directory first to allow per-IDB settings). Please note, this file is not
+created by default.
+
+Values declared in this file override default values. This file must be a valid
+``.ini`` file. It can be used to customize some settings, especially network
+related settings through the ``[INTERFACE]`` section.
+
+To illustrate its use with a scenario, let's suppose one wants to synchronize
+IDA with a debugger running inside a virtual machine (or simply another host),
+common remote kernel debugging scenario.
+
+Simply create a ``.sync`` file on the IDA side **and** on the debugger side (in
+the user's home directory for example) with the following content:
+
+::
+
+    [INTERFACE]
+    host=192.168.128.1
+    port=9234
+
+
+It tells **ret-sync** ``IDA`` plugin to listen on the interface
+``192.168.128.1`` with port ``9234``, and to the debugger plugin to connect to
+this host/port.
+
+
+
+IDA global shortcuts
+--------------------
+
+**ret-sync** defines these global shortcuts in IDA:
+
+* ``Alt-Shift-S``  - Run ret-sync plugin
+* ``Ctrl-Shift-S``  - Toggle global syncing
+* ``Ctrl-H``  - Toggle Hex-Rays syncing
+
+Two buttons are also available in the Debug toolbar to toggle global and
+Hex-Rays syncing.
+
+
+
+Getting started
+---------------
+
+Quick-start to set up IDA/Windbg syncing.
 
 
 Build it
 ++++++++
 
-Use the Visual Studio 2017 solution provided in ``ext_windbg``,
-(see https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes if needed).
+For Windbg, either use pre-built binaries or use the Visual Studio 2017
+solution provided in ``ext_windbg``, (see
+https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes if
+needed).
 
+
+Install it
+++++++++++
+
+For Windbg, copy the built extension (``sync.dll``) into the plugin directory (be
+careful of ``x86``/``x64`` versions), for example:
+
+* ``C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\winext``
+
+
+For IDA, copy ``Syncplugin.py`` and ``retsync`` folder from ``ext_ida`` to IDA
+plugins directory, for example:
+
+* ``C:\Program Files\IDA Pro 7.4\plugins``
+* ``%APPDATA%\Hex-Rays\IDA Pro\plugins``
+* ``~/.idapro/plugins``
 
 
 Use it
 ++++++
 
-0. If necessary, set:
-
-   * ``PYTHON_PATH`` in ``SyncPlugin.py``
-   * ``BROKER_PATH`` in ``SyncPlugin.py``, by default look for ``broker.py`` in current plugin path
-   * ``HOST`` in ``broker.py``, localhost is the default interface.
-
-   ``broker.py`` and ``sync.dll`` check for a configuration file named ``.sync`` in user's home directory.
-   (IDA's side ``broker.py`` and ``dispatcher.py`` actually look for the configuration file in the IDB's
-   directory first).
-   Content of this file overwrite default values. It should respect a ``.ini`` file format::
-
-        [INTERFACE]
-        host=127.0.0.1
-        port=9100
-
-   (This file is not created by default)
-
+0. If necessary, create ``.sync`` configuration files.
 
 1. Open IDB
 
-2. ``IDA File`` -> ``Script File`` -> ``SyncPlugin.py``::
+2. Run the plugin in IDA (``Alt-Shift-S``) or ``Edit`` -> ``Plugins`` -> ``ret-sync``::
 
     [sync] form create
-    [*] initBroker, "Y:\Python27\python.exe" -u "Y:\sync\broker.py" --idb "target.exe"
-    [sync] path Y:\target\
-    [sync] name target.exe
-    [sync] module base 0x400000
-        callui 0xf10ca0
-        grentry 0xfd17b0
-        curr tform * 0x960e538
-        find tform * 0x404e678 (IDA View-A)
-        graph viewer 0xc74c50 ret 0x0
+    [sync] default idb name: target.bin
+    [*] sync enabled
+    [*] init_broker
+    [*] cmdline: "C:\Python27\python.exe" -u "C:\Program Files\IDA Pro 7.3\plugins\retsync\broker.py" --idb "target.bin"
+    [sync] name target.bin
+    [sync] module base 0x0
+    [sync] hexrays #7.3.0.190610 found
+    [*] broker new state: Starting
+    [*] broker new state: Running
     [*] broker started
-    [sync] hotkey registered
-    [*] << broker << failed to connect to dispatcher (attempt 1)
     [*] << broker << dispatcher not found, trying to run it
-    [*] << broker << dispatcher now runs with pid: 3816
+    [*] << broker << dispatcher now runs with pid: 14568
     [*] << broker << connected to dispatcher
-    [*] broker notice: listening on port 51101
-    [*] << broker << listening
-    [*] << broker << dispatcher msg: add new client (listening on port 51101), nb client(s): 1
+    [*] << broker << listening on port 63898
+    [*] << broker << dispatcher msg: add new client (listening on port 63898), nb client(s): 1
+
 
 3. Launch WinDbg on target
 
-4. Load extension::
+4. Load extension (``.load`` command)::
 
     0:000> .load sync
     [sync.dll] DebugExtensionInitialize, ExtensionApis loaded
@@ -163,27 +194,29 @@ Use it
 
 5. Sync WinDbg::
 
-    0:000> !sync
-    [sync] No argument found, using default host (127.0.0.1:9100)
-    [sync] sync success, sock 0x5a8
-    [sync] probing sync
-    [sync] sync is now enabled with host 192.168.208.1
-
+      0:000> !sync
+      [sync] No argument found, using default host (127.0.0.1:9100)
+      [sync] sync success, sock 0x5a8
+      [sync] probing sync
+      [sync] sync is now enabled with host 127.0.0.1
 
    In IDA's Output window::
 
-    [*] << broker << dispatcher msg: new debugger client: dbg connect - HostMachine\HostUser
+      [*] << broker << dispatcher msg: add new client (listening on port 63898), nb client(s): 1
+      [*] << broker << dispatcher msg: new debugger client: dbg connect - HostMachine\HostUser
+      [sync] set debugger dialect to windbg, enabling hotkeys
 
-    If Windbg's current module match IDA file name:
 
-    [sync] idb is enabled with the idb client matching the module name.
+   If Windbg's current module matches IDA file name::
+
+      [sync] idb is enabled with the idb client matching the module name.
 
 
 6. IDA plugin's GUI
 
-   ``Overwrite idb name`` input field is meant to change the default idb name. It is
+   The ``Overwrite idb name`` input field is meant to change the default IDB name. It is
    the name that is used by the plugin to register with the dispatcher.
-   idb automatic switch is based on module name matching. In case of conflicting names
+   IDB automatic switch is based on module name matching. In case of conflicting names
    (like a ``foo.exe`` and ``foo.dll``), this can be used to ease matching.
    Please note, if you modify the input field while the sync is active, you have to re-register
    with the dispatcher; this can be done simply by using the "``Restart``" button.
@@ -193,7 +226,7 @@ Use it
        [<ida_root_filename>]
        name=<alias name>
 
-   The section name is the idb's root file name and has only one option: ``name``.
+   The section name is the IDB's root file name and has only one option: ``name``.
 
 
 7. Use WinDbg and enjoy IDA's activity
@@ -270,7 +303,7 @@ Extra commands
 
 * **!rln <expression>**
 
-  Get symbol from the idb for the given address
+  Get symbol from the IDB for the given address
 
 * **!lbl [-a address] <string>**
 
@@ -322,7 +355,7 @@ Extra commands
 
 * **!syncmodauto <on|off>**
 
-  Enable/disable idb auto switch based on module name::
+  Enable/disable IDB auto switch based on module name::
 
     [WinDbg]
     0:000> !syncmodauto off
@@ -333,14 +366,14 @@ Extra commands
 
 * **!idbn <n>**
 
-  Set active idb to the nth client. n should be a valid decimal value.
+  Set active IDB to the nth client. n should be a valid decimal value.
   This is a semi-automatic mode (personal tribute to the tremendous jj)::
 
     [WinDbg]
     0:000:> !idbn 0
     > current idb set to 0
 
-  In this example, current active idb client would have been set to::
+  In this example, current active IDB client would have been set to::
 
 	[0] target.exe.
 
@@ -349,15 +382,15 @@ Extra commands
 
   Expression given as argument is evaluated in the context of the current debugger's status.
   IDA's view is then synced with the resulting address if a matching module is registered.
-  Can be seen as a manual synching, relocation is automatically performed, on the fly.
+  Can be seen as a manual syncing, relocation is automatically performed, on the fly.
   Especially useful for randomly relocated binary.
 
 
 * **!jmpraw <expression>**
 
   Expression given as argument is evaluated in the context of the current debugger's status.
-  If an idb is enable then IDA's view is synced with the resulting address. Address is not rebased
-  and there is no idb switching.
+  If an IDB is enabled then IDA's view is synced with the resulting address. Address is not rebased
+  and there is no IDB switching.
   Especially useful for dynamically allocated/generated code.
 
 * **!modmap <base> <size> <name>**
@@ -373,12 +406,12 @@ Extra commands
 * **!modcheck <||md5>**
 
   Use to check if current module really matches IDB's file (ex: module has been updated)
-  When call without argument, pdb's GUID from Debug Directory is used. It can also use md5,
-  but only with local debuggee (not in remote kernel debugging).
+  When called without an argument, pdb's GUID from Debug Directory is used. It can alternatively use md5,
+  but only with a local debuggee (not in remote kernel debugging).
 
 * **!bpcmds <||save|load|>**
 
-  **bpcmds** wrapper, save and reload **.bpcmds** (breakpoints commands list) output to current idb.
+  **bpcmds** wrapper, save and reload **.bpcmds** (breakpoints commands list) output to current IDB.
   Display (but not execute) saved data if called with no argument.
   Persistent storage is achieved using IDA's netnode feature.
 
@@ -396,7 +429,7 @@ Address optional argument
 
 **!cmt**, **!rcmt** and **!fcmt** commands support an optional address option: ``-a`` or ``--address``.
 Address should be passed as an hexadecimal value. Command parsing is based on python's
-module ``argparse``. To stop line parsing use ``--``.::
+``argparse`` module. To stop line parsing use ``--``.::
 
     [WinDbg]
     0:000:x86> !cmt -a 0x430DB2 comment
@@ -410,17 +443,49 @@ IDA bindings over WinDbg commands:
 
 ``Syncplugin.py`` also registers WinDbg command wrapper hotkeys.
 
-* ``F2``  - Set breakpoint at cursor address
-* ``F3``  - Set one-shot breakpoint at cursor address
-* ``Ctrl-F2``  - Set hardware breakpoint at cursor address
-* ``Ctrl-F3``  - Set one-shot hardware breakpoint at cursor address
+* ``F2`` - Set breakpoint at cursor address
+* ``F3`` - Set one-shot breakpoint at cursor address
+* ``Ctrl-F2`` - Set hardware breakpoint at cursor address
+* ``Ctrl-F3`` - Set one-shot hardware breakpoint at cursor address
 * ``Alt-F2`` - Translate (rebase in debugger) current cursor address
-* ``Alt-F5``  - Go
+* ``Alt-F5`` - Go
 * ``F10`` - Single step
 * ``F11`` - Single trace
 
-These commands are only available when the current idb is active. When
+These commands are only available when the current IDB is active. When
 possible they have also been implemented for others debuggers.
+
+
+
+Ghidra
+------
+
+Ghidra is a software reverse engineering (SRE) suite of tools developed by
+NSA's Research Directorate, it can be used alternatively or in complement with
+IDA.
+
+``ext_ghidra`` is a server extension as ``ext_ida``. It uses the same ``.sync``
+configuration files and implements the same protocol, thus all the debugger
+extensions (WinDbg/GDB/LLDB/OllyDbg/OllyDbg2/x64dbg) are compatible.
+
+1. Compile the extension or copy ``ZIP`` from ``ext_ghidra/dist`` to ``$GHIDRA_DIR/Extensions/Ghidra/``
+2. From Ghidra projects manager: ``File`` -> ``Install Extensions...``
+3. Use toolbar icons or shortcuts to enable (``Alt+s``)/disable (``Alt+Shift+s``)/restart (``Alt+r``)
+   synchronization.
+
+A status window is also available from ``CodeBrowser`` tool: ``Windows`` -> ``RetSyncPlugin``.
+
+Bindings over debugger commands are also implemented. They are very similar to
+the ones from IDA's extension.
+
+* ``F2`` - Set breakpoint at cursor address
+* ``Ctrl-F2`` - Set hardware breakpoint at cursor address
+* ``Alt-F3`` - Set one-shot breakpoint at cursor address
+* ``Ctrl-F3`` - Set one-shot hardware breakpoint at cursor address
+* ``Alt-F2`` - Translate (rebase in debugger) current cursor address
+* ``F5`` - Go
+* ``F10`` - Single step
+* ``F11`` - Single trace
 
 
 GNU gdb (GDB)
@@ -474,7 +539,7 @@ Use it
 
 * **rln**
 
-  Get symbol from the idb for the given address
+  Get symbol from the IDB for the given address
 
 * **bbt**
 
@@ -637,8 +702,8 @@ TODO
 KNOWN BUGS/LIMITATIONS
 -----------------------
 
-- Tested with Python 2.7, IDA 6.4 to 7.2 (Windows, Linux and Mac OS X), GNU gdb (GDB) 7.4.1 (Debian), lldb 310.2.37.
-- **THERE IS NO AUTHENTICATION/ENCRYPTION** or whatsoever between the parties; you're on your own.
+- Tested with Python 2.7/3.7, IDA 7.4 (Windows, Linux and Mac OS X), Ghidra 9.1, GNU gdb (GDB) 7.4.1 (Debian), lldb 310.2.37.
+- **THERE IS NO AUTHENTICATION/ENCRYPTION** whatsoever between the parties; you're on your own.
 - Self modifying code is out of scope.
 
 With GDB:
@@ -649,7 +714,7 @@ With GDB:
 With WinDbg:
 
 - IDA's client plugin gets notified even though encountered breakpoint
-  uses a command string that makes it continue ('g'). This can cause major slow-down
+  uses a command string that makes it continue ('``g``'). This can cause major slow-down
   if there are too much of these events. A limited fix has been implemented, the
   best solution is still to sync off temporarily.
 - Possible race condition
@@ -681,6 +746,6 @@ GREETZ
 ------
 
 Hail to Bruce Dang, StalkR, @Ivanlef0u, Damien Aumaître, Sébastien Renaud and
-Kévin Szkudlapski, @_m00dy_, @saidelike for their kindness, help, feedbacks
-and thoughts. Ilfak Guilfanov and Igor Skochinsky for their help with IDA's
-internals.
+Kévin Szkudlapski, @_m00dy_, @saidelike, Xavier Mehrenberger, ben64, Raphaël
+Rigo for their kindness, help, feedbacks and thoughts. Ilfak Guilfanov and
+Igor Skochinsky for their help with IDA's internals and outstanding support.
