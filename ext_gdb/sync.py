@@ -79,7 +79,7 @@ def show_last_exception(cmd):
 
         print("""{} File "{}", line {:d}, in {}()""".format(down_arrow, filename,
                                                             lineno, method))
-        print("   {}    {}".format(right_arrow, code))
+        print("   {}    {}\n".format(right_arrow, code))
 
 
 # function gdb_execute courtesy of StalkR
@@ -397,20 +397,21 @@ class Sync(gdb.Command):
 
         self.offset = offset
 
-        mod = self.mod_info(self.offset)
-        if mod:
-            base, sym = mod
+        if self.auto:
+            mod = self.mod_info(self.offset)
+            if mod:
+                base, sym = mod
 
-            if (self.base != base) and self.auto:
-                self.tunnel.send("[notice]{\"type\":\"module\",\"path\":\"%s\"}\n" % sym)
-                self.base = base
+                if (self.base != base) :
+                    self.tunnel.send("[notice]{\"type\":\"module\",\"path\":\"%s\"}\n" % sym)
+                    self.base = base
 
-            self.tunnel.send("[sync]{\"type\":\"loc\",\"base\":%d,\"offset\":%d}\n" % (self.base, self.offset))
-        else:
-            print("[sync] unknown module at current PC: 0x%x" % self.offset)
-            print("[sync] NOTE: will resume sync when at a known module address")
-            self.base = None
-            self.offset = None
+                self.tunnel.send("[sync]{\"type\":\"loc\",\"base\":%d,\"offset\":%d}\n" % (self.base, self.offset))
+            else:
+                print("[sync] unknown module at current PC: 0x%x" % self.offset)
+                print("[sync] NOTE: will resume sync when at a known module address")
+                self.base = None
+                self.offset = None
 
     def create_poll_timer(self):
         if not self.poller:
@@ -900,23 +901,27 @@ if __name__ == "__main__":
     locations = [os.path.expanduser(os.path.dirname(__file__)),
                  os.environ['HOME']]
 
-    for confpath in [os.path.join(p, ".sync") for p in locations]:
+    for confpath in [os.path.join(p, '.sync') for p in locations]:
         if os.path.exists(confpath):
             config = configparser.SafeConfigParser({'host': HOST, 'port': PORT, 'context': ''})
             config.read(confpath)
             print("[sync] configuration file loaded from: %s" % confpath)
 
-            if config.has_section("INTERFACE"):
-                HOST = config.get("INTERFACE", 'host')
-                PORT = config.getint("INTERFACE", 'port')
+            if config.has_section('INTERFACE'):
+                HOST = config.get('INTERFACE', 'host')
+                PORT = config.getint('INTERFACE', 'port')
                 print("       interface: %s:%s" % (HOST, PORT))
 
-            if config.has_section("INIT"):
-                ctx = config.get("INIT", 'context')
-                if ctx != '':
-                    # eval() for fun
-                    ctx = eval(ctx)
-                    print("[sync] initialization context:\n%s\n" % json.dumps(context, indent=4))
+            if config.has_section('INIT'):
+                ctx_entry = config.get('INIT', 'context')
+                if ctx_entry != '':
+                    try:
+                        # eval() for fun
+                        ctx = eval(ctx_entry)
+                        print("[sync] initialization context:\n%s\n" % json.dumps(ctx, indent=4))
+                    except Exception as e:
+                        print('[sync] failed to parse [INIT] section from .sync configuration file')
+                        show_last_exception('eval')
                 else:
                     ctx = None
 
