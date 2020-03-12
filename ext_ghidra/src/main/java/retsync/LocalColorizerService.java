@@ -1,6 +1,6 @@
 /*
 
-Copyright (C) 2019, Alexandre Gazet.
+Copyright (C) 2019-2020, Alexandre Gazet.
 
 This file is part of ret-sync.
 
@@ -39,6 +39,7 @@ package retsync;
 
 import java.awt.Color;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -176,11 +177,14 @@ public class LocalColorizerService {
 
         // apply highlight for each collected line
         lines.forEach((line) -> {
-            line.getAllTokens().forEach((token) -> {
-                token.setHighlight(SYNC_CURLINE);
-            });
+            ArrayList<ClangToken> ltoks = line.getAllTokens();
+            if (ltoks != null) {
+                ltoks.forEach((token) -> {
+                    if (token != null)
+                        token.setHighlight(SYNC_CURLINE);
+                });
+            }
         });
-
     }
 
     /*

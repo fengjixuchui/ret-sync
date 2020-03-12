@@ -1,5 +1,5 @@
 ﻿#
-# Copyright (C) 2016-2019, Alexandre Gazet.
+# Copyright (C) 2016-2020, Alexandre Gazet.
 #
 # Copyright (C) 2012-2014, Quarkslab.
 #
@@ -43,7 +43,7 @@ except ImportError:
 
 HOST = "localhost"
 PORT = 9100
-
+USE_TMP_LOGGING_FILE = True
 TIMER_PERIOD = 0.2
 PYTHON_MAJOR = sys.version_info[0]
 
@@ -85,6 +85,8 @@ def show_last_exception(cmd):
 # function gdb_execute courtesy of StalkR
 # Wrapper when gdb.execute(cmd, to_string=True) does not work
 def gdb_execute(cmd):
+    if not USE_TMP_LOGGING_FILE:
+        return gdb.execute(cmd, to_string=True)
     f = tempfile.NamedTemporaryFile()
     gdb.execute("set logging file %s" % f.name)
     gdb.execute("set logging redirect on")
@@ -373,13 +375,15 @@ class Sync(gdb.Command):
             id = open(fd.name, 'r').read()
         return id.strip()
 
-    def mod_info(self, addr):
+    def ensure_maps_loaded(self):
         if not self.maps:
             self.maps = get_maps(ctx=self.ctx)
             if not self.maps:
                 print("[sync] failed to get proc mappings")
                 return None
 
+    def mod_info(self, addr):
+        self.ensure_maps_loaded()
         return get_mod_by_addr(self.maps, addr)
 
     def locate(self):
@@ -402,8 +406,14 @@ class Sync(gdb.Command):
             if mod:
                 base, sym = mod
 
-                if (self.base != base) :
-                    self.tunnel.send("[notice]{\"type\":\"module\",\"path\":\"%s\"}\n" % sym)
+                if (self.base != base):
+                    modules = []
+                    self.ensure_maps_loaded()
+
+                    for mod in self.maps:
+                        modules.append("{\"base\":%d,\"path\":\"%s\"}" % (mod[0], mod[3]))
+
+                    self.tunnel.send("[notice]{\"type\":\"module\",\"path\":\"%s\",\"modules\":[%s]}\n" % (sym, ','.join(modules)))
                     self.base = base
 
                 self.tunnel.send("[sync]{\"type\":\"loc\",\"base\":%d,\"offset\":%d}\n" % (self.base, self.offset))
@@ -521,6 +531,9 @@ class Idblist(WrappedCommand):
         gdb.Command.__init__(self, "idblist", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
+        # First disable tunnel polling for commands (happy race...)
+        self.sync.release_poll_timer()
+
         self.sync.tunnel.send("[notice]{\"type\":\"idb_list\"}\n")
 
         # Let time for the dispatcher to reply if it exists
@@ -532,6 +545,9 @@ class Idblist(WrappedCommand):
             print('[sync] idblist failed')
         else:
             print(msg)
+
+        # Re-enable tunnel polling
+        self.sync.create_poll_timer()
 
 
 class Idbn(WrappedCommand):
@@ -545,6 +561,9 @@ class Idbn(WrappedCommand):
             print("[sync] usage: idbn <idb num>")
             return
 
+        # First disable tunnel polling for commands (happy race...)
+        self.sync.release_poll_timer()
+
         self.sync.tunnel.send("[notice]{\"type\":\"idb_n\",\"idb\":\"%s\"}\n" % arg)
 
         # Let time for the dispatcher to reply if it exists
@@ -556,6 +575,9 @@ class Idbn(WrappedCommand):
             print('[sync] idbn failed')
         else:
             print(msg)
+
+        # Re-enable tunnel polling
+        self.sync.create_poll_timer()
 
 
 class Cmt(WrappedCommand):
@@ -775,7 +797,11 @@ class Bx(WrappedCommand):
 
         # Poll tunnel
         msg = self.sync.tunnel.poll()
-        raddr = int(msg.rstrip())
+        msg = msg.rstrip()
+        if msg.startswith('0x'):
+            raddr = int(msg, 16)
+        else:
+            raddr = int(msg)
 
         # Re-enable tunnel polling
         self.sync.create_poll_timer()
@@ -903,9 +929,12 @@ if __name__ == "__main__":
 
     for confpath in [os.path.join(p, '.sync') for p in locations]:
         if os.path.exists(confpath):
-            config = configparser.SafeConfigParser({'host': HOST, 'port': PORT, 'context': ''})
+            config = configparser.SafeConfigParser({'host': HOST, 'port': PORT, 'context': '', 'use_tmp_logging_file': USE_TMP_LOGGING_FILE})
             config.read(confpath)
             print("[sync] configuration file loaded from: %s" % confpath)
+            if config.has_section('GENERAL'):
+                USE_TMP_LOGGING_FILE = config.getboolean('GENERAL', 'use_tmp_logging_file')
+                print("       general: use_tmp_logging_file is %s" % USE_TMP_LOGGING_FILE)
 
             if config.has_section('INTERFACE'):
                 HOST = config.get('INTERFACE', 'host')

@@ -1,6 +1,6 @@
 /*
 
-Copyright (C) 2019, Alexandre Gazet.
+Copyright (C) 2019-2020, Alexandre Gazet.
 
 This file is part of ret-sync.
 
@@ -48,7 +48,7 @@ public class DebuggerDialects {
                     entry("si", "si"),
                     entry("so", "ni"),
                     entry("go", "continue"),
-                    entry("bp", "b * "),
+                    entry("bp", "b *"),
                     entry("hbp", "hb *"),
                     entry("bp1", "tb *"),
                     entry("hbp1", "thb *")

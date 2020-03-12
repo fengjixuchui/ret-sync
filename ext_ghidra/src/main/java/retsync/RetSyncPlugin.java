@@ -1,6 +1,6 @@
 /*
 
-Copyright (C) 2019, Alexandre Gazet.
+Copyright (C) 2019-2020, Alexandre Gazet.
 
 This file is part of ret-sync.
 
@@ -27,8 +27,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.ini4j.Ini;
@@ -102,11 +104,13 @@ public class RetSyncPlugin extends ProgramPlugin {
     Program program = null;
     Address imageBaseLocal = null;
     Address imageBaseRemote = null;
+    Map<String, Long> moduleBaseRemote = Collections.<String, Long>emptyMap();
     Boolean syncEnabled = false;
     Boolean syncModAuto = true;
 
     // default configuration
     private static final boolean DEBUG_CALLBACK = false;
+    protected static final boolean DEBUG_MODULES = false;
     private static final String CONF_INI_FILE = ".sync";
     protected final String SYNC_HOST_DEFAULT = "localhost";
     protected final int SYNC_PORT_DEFAULT = 9100;
@@ -145,8 +149,17 @@ public class RetSyncPlugin extends ProgramPlugin {
     @Override
     protected void programActivated(Program activatedProgram) {
         imageBaseLocal = activatedProgram.getImageBase();
-        if (DEBUG_CALLBACK) {
-            cs.println(String.format("[>] programActivated: %s", activatedProgram.getName()));
+        String programName = activatedProgram.getName();
+
+        cs.println(String.format("[>] programActivated: %s", programName));
+
+        Long remoteBase = moduleBaseRemote.getOrDefault(programName, null);
+        if (remoteBase != null) {
+            imageBaseRemote = imageBaseLocal.getNewAddress(remoteBase);
+            cs.println(String.format("    local addr: %s, remote: 0x%x", imageBaseLocal.toString(), remoteBase));
+        } else {
+            imageBaseRemote = null;
+            cs.println(String.format("    local addr: %s, remote: unknown", imageBaseLocal.toString()));
         }
     }
 
@@ -315,6 +328,14 @@ public class RetSyncPlugin extends ProgramPlugin {
         return found;
     }
 
+    void setRemoteModuleBases(Map<String, Long> bases) {
+        moduleBaseRemote = bases;
+    }
+
+    boolean isRemoteBaseKnown() {
+        return imageBaseRemote != null;
+    }
+
     // rebase remote address with respect to
     // current program image base
     Address rebase(long base, long offset) {
@@ -335,9 +356,7 @@ public class RetSyncPlugin extends ProgramPlugin {
             return null;
         }
 
-        if (imageBaseRemote == null) {
-            imageBaseRemote = imageBaseLocal.getNewAddress(base);
-        }
+        imageBaseRemote = imageBaseLocal.getNewAddress(base);
 
         return dest;
     }
@@ -534,7 +553,7 @@ public class RetSyncPlugin extends ProgramPlugin {
         } else {
             curAddr = rebaseRemote(cLoc.getAddress());
         }
-        
+
         return curAddr;
     }
 
