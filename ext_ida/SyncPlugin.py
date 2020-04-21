@@ -61,8 +61,11 @@ import idaapi
 import idautils
 import ida_bytes
 import ida_graph
+import ida_range
+import ida_funcs
 import ida_hexrays
 import ida_kernwin
+import ida_idaapi
 import ida_dbg
 import ida_nalt
 
@@ -142,7 +145,7 @@ class RequestHandler(object):
 
     # check if address is within a valid segment
     def is_safe(self, offset):
-        return not (idc.get_segm_start(offset) == idaapi.BADADDR)
+        return not (idc.get_segm_start(offset) == ida_idaapi.BADADDR)
 
     # rebase address with respect to local image base
     def rebase(self, base, offset):
@@ -191,8 +194,8 @@ class RequestHandler(object):
     def append_cmt(self, ea, cmt, rptble=False):
         if len(cmt) > 1024:
             rs_log("warning, comment needs to be splitted (from 0x%x)" % ea)
-            nh = idaapi.next_head(ea, idaapi.BADADDR)
-            if nh == idaapi.BADADDR:
+            nh = idaapi.next_head(ea, ida_idaapi.BADADDR)
+            if nh == ida_idaapi.BADADDR:
                 rs_log('[x] failed to find next instruction candidate')
                 return
 
@@ -217,6 +220,11 @@ class RequestHandler(object):
 
         if self.hexsync.enabled:
             self.hexsync.cb_loc(ea)
+
+    # set remote base on purpose
+    def req_rbase(self, hash):
+        rbase = hash['rbase']
+        self.base_remote = rbase
 
     # log command output request at addr
     def req_cmd(self, hash):
@@ -349,9 +357,13 @@ class RequestHandler(object):
                 return
 
             lck = idaapi.lock_func(func)
+            limits = ida_range.range_t()
+            rs = ida_range.rangeset_t()
 
-            limits = idaapi.range_t()
-            if idaapi.get_func_limits(func, limits):
+            if ida_funcs.get_func_ranges(rs, func) != ida_idaapi.BADADDR:
+                limits.start_ea = rs.begin().start_ea
+                limits.end_ea = rs.begin().end_ea
+
                 if limits.start_ea != addr:
                     if (addr > limits.start_ea):
                         sym = "%s%s0x%x" % (sym, "+", addr - limits.start_ea)
@@ -479,7 +491,7 @@ class RequestHandler(object):
 
         if md5:
             rs_log("modcheck idb (md5)")
-            local = rs_decode(idaapi.retrieve_input_file_md5())
+            local = rs_decode(binascii.hexlify(idaapi.retrieve_input_file_md5())).upper()
             remote = (''.join(md5.split())).upper()
         elif pdb:
             rs_log("modcheck idb (pdb guid)")
@@ -523,7 +535,7 @@ class RequestHandler(object):
         elif(subtype == 'notice'):
             # notice from broker
             self.broker_port = int(hash['port'])
-            rs_log("<< broker << listening on port %d" % self.broker_port)
+            rs_debug("<< broker << binding on port %d" % self.broker_port)
 
             for attempt in range(rsconfig.CONNECT_BROKER_MAX_ATTEMPT):
                 try:
@@ -542,6 +554,10 @@ class RequestHandler(object):
                     if (attempt == (rsconfig.CONNECT_BROKER_MAX_ATTEMPT - 1)):
                         self.announcement("[sync] failed to connect to broker (attempt %d)" % attempt)
                         raise RuntimeError
+
+            # request broker to validate its beacon
+            time.sleep(0.4)
+            self.beacon_notice()
 
         # enable/disable idb, if disable it drops most sync requests
         elif(subtype == 'enable_idb'):
@@ -615,6 +631,10 @@ class RequestHandler(object):
     # send a kill notice to the broker (then forwarded to the dispatcher)
     def kill_notice(self):
         self.notice_broker("kill")
+
+    # send a beacon notice to the broker
+    def beacon_notice(self):
+        self.notice_broker('beacon')
 
     # send a bp command (F2) to the debugger (via the broker and dispatcher)
     def bp_notice(self, oneshot=False):
@@ -690,9 +710,8 @@ class RequestHandler(object):
         ea = idaapi.get_screen_ea()
         mod = self.name.split('.')[0].strip()
         cmd = self.dbg_dialect['prefix'] + "translate 0x%x 0x%x %s" % (self.base, ea, mod)
-
         self.notice_broker("cmd", "\"cmd\":\"%s\"" % cmd)
-        rs_log("translate address 0x%x" % ea)
+        rs_debug("translate address 0x%x" % ea)
 
     # send a go command (Alt-F5) to the debugger (via the broker and dispatcher)
     def go_notice(self):
@@ -768,6 +787,7 @@ class RequestHandler(object):
             'rcmt': self.req_rcmt,
             'fcmt': self.req_fcmt,
             'raddr': self.req_raddr,
+            'rbase': self.req_rbase,
             'cursor': self.req_cursor,
             'patch': self.req_patch,
             'rln': self.req_rln,
@@ -957,6 +977,10 @@ class SyncForm_t(PluginForm):
     def init_broker(self):
         rs_debug("init_broker")
         modname = self.input.text()
+        if modname == "":
+            modname = self.handle_name_aliasing()
+            self.input.setText(modname)
+
         cmdline = "\"%s\" -u \"%s\" --idb \"%s\"" % (
                   PYTHON_PATH,
                   BROKER_PATH,

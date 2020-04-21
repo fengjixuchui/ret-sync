@@ -96,9 +96,9 @@ Python standard libraries for releases 2.7 and newer.
 Pre-built binaries for WinDbg/OllyDbg/OllyDbg2/x64dbg debuggers are proposed
 through an ``Azure DevOps`` pipeline: [![Build Status](https://dev.azure.com/bootlegdev/ret-sync-release/_apis/build/status/ret-sync-release-CI?branchName=master)](https://dev.azure.com/bootlegdev/ret-sync-release/_build/latest?definitionId=8?branchName=master)
 
-Select the last build and check under the ``Related`` section: ``6 published``.
+Select the last build and check the artifacts under the ``Related`` section: ``6 published``.
 
-![](img/pipeline.png) 
+![](img/pipeline.png)
 
 
 A pre-built plugin archive of the Ghidra plugin is provided in `ext_ghidra/dist`.
@@ -491,6 +491,9 @@ WinDbg specific commands:
 
 | Debugger command           | Description                                                                               |
 |----------------------------|-------------------------------------------------------------------------------------------|
+| `curmod`  |  Display module infomation for current instruction offset (for troubleshooting) |
+| `modlist`  |  Debugger Markup Language (DML) enhanced module list meant for smoother active idb switching  |
+| `idb <module name>`  |  Set given module as the active idb (see `modlist` enhanced version of `lm`) |
 | `modmap <base> <size> <name>` |  A synthetic ("faked") module (defined using its base address and size) is added to the debugger internal list  |
 | `modunmap <base>` |  Remove a previously mapped synthetic module at base address  |
 | `modcheck <\|\|md5>`  |  Use to check if current module really matches IDB's file (ex: module has been updated)  |
@@ -858,10 +861,12 @@ Use commands, **without "!" prefix**
     lldb> cmt mooo
 ```
 
+
 ## OllyDbg 1.10 usage
 
 1. Use Plugins menu or shortcuts to enable (``Alt+s``)/disable (``Alt+u``)
    synchronization.
+
 
 ## OllyDbg2 usage
 
@@ -877,7 +882,24 @@ Due to the beta status of OllyDbg2 API, only the following features have been im
 
 ## x64dbg usage
 
-1. Use commands to enable ("``!sync"``) or disable ("``!syncoff``") synchronization.
+1. Use Plugins menu or commands enable ("``!sync"``) or disable ("``!syncoff``") synchronization.
+
+2. Use commands
+
+```
+[sync] synchelp command!
+[sync] extension commands help:
+ > !sync                          = synchronize with <host from conf> or the default value
+ > !syncoff                       = stop synchronization
+ > !synchelp                      = display this help
+ > !cmt <string>                  = add comment at current eip in IDA
+ > !rcmt <string>                 = reset comments at current eip in IDA
+ > !idblist                       = display list of all IDB clients connected to the dispatcher
+ > !idb <module name>             = set given module as the active idb (see !idblist)
+ > !idbn <n>                      = set active idb to the n_th client. n should be a valid decimal value
+ > !translate <base> <addr> <mod> = rebase an address with respect to local module's base
+```
+
 
 # Extend
 
@@ -892,7 +914,7 @@ While mostly focus on dynamic analysis, it is of-course possible to use other to
 
 # Known Bugs/Limitations
 
-- Tested with Python 2.7/3.7, IDA 7.4 (Windows, Linux and Mac OS X), Ghidra 9.1, GNU gdb (GDB), 7.4.1 (Debian), lldb 310.2.37.
+- Tested with Python 2.7/3.7, IDA 7.4SP1 (Windows, Linux and Mac OS X), Ghidra 9.1.2, GNU gdb (GDB), 7.4.1 (Debian), lldb 310.2.37.
 - **THERE IS NO AUTHENTICATION/ENCRYPTION** whatsoever between the parties; you're on your own.
 - Self modifying code is out of scope.
 
