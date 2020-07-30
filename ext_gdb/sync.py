@@ -37,16 +37,9 @@ import gdb
 import traceback
 
 try:
-    import configparser
+    from configparser import ConfigParser
 except ImportError:
-    import ConfigParser as configparser
-
-if sys.version_info[0] == 2:
-    try:
-        from future import super
-    except ImportError as e:
-        print("[sync] 'future' package is needed (e.g., 'pip install future')")
-        raise(e)
+    from ConfigParser import SafeConfigParser as ConfigParser
 
 
 HOST = "localhost"
@@ -528,7 +521,7 @@ class Sync(gdb.Command):
 class Syncoff(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync, True)
+        super(Syncoff, self).__init__(sync, True)
         gdb.Command.__init__(self, "syncoff", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -539,7 +532,7 @@ class Syncoff(WrappedCommand):
 class Syncmodauto(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync, True)
+        super(Syncmodauto, self).__init__(sync, True)
         gdb.Command.__init__(self, "syncmodauto", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -558,7 +551,7 @@ class Syncmodauto(WrappedCommand):
 class Idblist(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Idblist, self).__init__(sync)
         gdb.Command.__init__(self, "idblist", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -583,7 +576,7 @@ class Idblist(WrappedCommand):
 class Idbn(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Idbn, self).__init__(sync)
         gdb.Command.__init__(self, "idbn", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -637,7 +630,7 @@ class Idbn(WrappedCommand):
 class Idb(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Idb, self).__init__(sync)
         gdb.Command.__init__(self, "idb", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -667,7 +660,7 @@ class Idb(WrappedCommand):
 class Modlist(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Modlist, self).__init__(sync)
         gdb.Command.__init__(self, "modlist", gdb.COMMAND_RUNNING, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -677,7 +670,7 @@ class Modlist(WrappedCommand):
 class Cmt(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Cmt, self).__init__(sync)
         gdb.Command.__init__(self, "cmt", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -692,7 +685,7 @@ class Cmt(WrappedCommand):
 class Fcmt(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Fcmt, self).__init__(sync)
         gdb.Command.__init__(self, "fcmt", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -703,7 +696,7 @@ class Fcmt(WrappedCommand):
 class Rcmt(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Rcmt, self).__init__(sync)
         gdb.Command.__init__(self, "rcmt", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -714,7 +707,7 @@ class Rcmt(WrappedCommand):
 class Translate(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync, True)
+        super(Translate, self).__init__(sync, True)
         gdb.Command.__init__(self, "translate", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -737,7 +730,7 @@ class Translate(WrappedCommand):
 class Bc(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Bc, self).__init__(sync)
         gdb.Command.__init__(self, "bc", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -755,7 +748,7 @@ class Bc(WrappedCommand):
 class Cmd(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Cmd, self).__init__(sync)
         gdb.Command.__init__(self, "cmd", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -772,7 +765,7 @@ class Cmd(WrappedCommand):
 class Rln(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Rln, self).__init__(sync)
         gdb.Command.__init__(self, "rln", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -804,7 +797,7 @@ class Rln(WrappedCommand):
 class Bbt(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Bbt, self).__init__(sync)
         gdb.Command.__init__(self, "bbt", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
         self.sync.symtable = {}
 
@@ -863,7 +856,7 @@ class Bbt(WrappedCommand):
 class Bx(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Bx, self).__init__(sync)
         gdb.Command.__init__(self, "bx", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -906,7 +899,7 @@ class Bx(WrappedCommand):
 class Cc(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Cc, self).__init__(sync)
         gdb.Command.__init__(self, "cc", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -957,7 +950,7 @@ class Cc(WrappedCommand):
 class Patch(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync)
+        super(Patch, self).__init__(sync)
         gdb.Command.__init__(self, "patch", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -987,7 +980,7 @@ class Patch(WrappedCommand):
 class Help(WrappedCommand):
 
     def __init__(self, sync):
-        super().__init__(sync, True)
+        super(Help, self).__init__(sync, True)
         gdb.Command.__init__(self, "synchelp", gdb.COMMAND_OBSCURE, gdb.COMPLETE_NONE)
 
     def _invoke(self, arg, from_tty):
@@ -1023,12 +1016,13 @@ if __name__ == "__main__":
         rs_log('plugin already loaded')
     except NameError as e:
         ctx = None
-        locations = [os.path.expanduser(os.path.dirname(__file__)),
+        locations = [os.path.abspath(os.path.dirname(__file__)),
                      os.environ['HOME']]
 
         for confpath in [os.path.join(p, '.sync') for p in locations]:
+
             if os.path.exists(confpath):
-                config = configparser.SafeConfigParser({'host': HOST, 'port': PORT, 'context': '', 'use_tmp_logging_file': USE_TMP_LOGGING_FILE})
+                config = ConfigParser({'host': HOST, 'port': PORT, 'context': '', 'use_tmp_logging_file': USE_TMP_LOGGING_FILE})
                 config.read(confpath)
                 rs_log("configuration file loaded from: %s" % confpath)
                 if config.has_section('GENERAL'):

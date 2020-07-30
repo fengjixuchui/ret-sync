@@ -1,4 +1,6 @@
 """
+Copyright (c) 2020, Alexandre Gazet
+
 Copyright (c) 2014, Cedric TESSIER
 
 All rights reserved.
@@ -37,7 +39,13 @@ import threading
 import json
 import base64
 import os
-import ConfigParser
+import logging
+
+try:
+    from configparser import ConfigParser
+except ImportError:
+    from ConfigParser import SafeConfigParser as ConfigParser
+
 
 HOST = "localhost"
 PORT = 9100
@@ -49,7 +57,7 @@ if __name__ == "__main__":
 
 try:
     import lldb
-except:
+except ImportError:
     pass
 
 
@@ -59,6 +67,29 @@ CMD_SYNC = 2
 CMD_CLS = {CMD_NOTICE: "notice", CMD_SYNC: "sync"}
 
 
+# encoding settings (for data going in/out the plugin)
+RS_ENCODING = 'utf-8'
+
+# log settings
+LOG_LEVEL = logging.INFO
+LOG_PREFIX = 'sync'
+LOG_COLOR_ON = "\033[1m\033[34m"
+LOG_COLOR_OFF = "\033[0m"
+
+
+def rs_encode(buffer_str):
+    return buffer_str.encode(RS_ENCODING)
+
+
+def rs_decode(buffer_bytes):
+    return buffer_bytes.decode(RS_ENCODING)
+
+
+def rs_log(s, lvl=logging.INFO):
+    if lvl >= LOG_LEVEL:
+        print("%s[%s]%s %s" % (LOG_COLOR_ON, LOG_PREFIX, LOG_COLOR_OFF, s))
+
+
 # TODO: factorize with GNU GDB plugin
 class Tunnel():
 
@@ -66,30 +97,30 @@ class Tunnel():
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((host, PORT))
-        except socket.error, msg:
+        except socket.error as msg:
             self.sock.close()
             self.sock = None
             self.sync = False
-            print "[sync] Tunnel initialization  error: %s" % msg
+            rs_log("Tunnel initialization  error: %s" % msg)
             return None
 
         self.sync = True
 
     def is_up(self):
-        return (self.sock != None and self.sync == True)
+        return (self.sock is not None and self.sync is True)
 
     def send(self, msg):
         if not self.sock:
-            print "[sync] tunnel_send: tunnel is unavailable (did you forget to sync ?)"
+            rs_log("tunnel_send: tunnel is unavailable (did you forget to sync ?)")
             return
 
         try:
-            self.sock.send(msg)
-        except socket.error, msg:
+            self.sock.send(rs_encode(msg))
+        except socket.error as msg:
             self.sync = False
             self.close()
 
-            print "[sync] tunnel_send error: %s" % msg
+            rs_log("tunnel_send error: %s" % msg)
 
     def close(self):
         if self.is_up():
@@ -98,8 +129,8 @@ class Tunnel():
         if self.sock:
             try:
                 self.sock.close()
-            except socket.error, msg:
-                print "[sync] tunnel_close error: %s" % msg
+            except socket.error as msg:
+                rs_log("tunnel_close error: %s" % msg)
 
         self.sync = False
         self.sock = None
@@ -124,7 +155,7 @@ class EventHandlerThread(threading.Thread):
             time.sleep(0.1)
         # Broadcast last process state
         self.sync._handleNewState(self.process)
-        print "[sync] event handler stopped"
+        rs_log("event handler stopped")
 
 
 class Sync(object):
@@ -165,7 +196,7 @@ class Sync(object):
 
         target = self._dbg.GetSelectedTarget()
         ptr_size = target.GetAddressByteSize()
-        last_addr = (-1)%(2**(ptr_size*8))
+        last_addr = (-1) % (2**(ptr_size*8))
         thread = process.GetSelectedThread()
         frame = thread.GetSelectedFrame()
         offset = frame.pc
@@ -197,7 +228,7 @@ class Sync(object):
 
     def _handleExit(self, process):
         self.reset()
-        print "[sync] exit, sync finished"
+        rs_log("exit, sync finished")
 
     def _handleNewState(self, process):
         state = process.GetState()
@@ -213,14 +244,14 @@ class Sync(object):
             return True
         if not host:
             host = HOST
-        print "[sync] connecting to %s" % host
+        rs_log("connecting to %s" % host)
         self._tunnel = Tunnel(host)
         if not self._tunnel.is_up():
-            print "[sync] sync failed"
+            rs_log("sync failed")
             self.reset()
             return False
-        self.cmd(CMD_NOTICE, "new_dbg", msg="dbg connect - %s" % self.identity)
-        print "[sync] sync is now enabled with host %s" % host
+        self.cmd(CMD_NOTICE, "new_dbg", msg="dbg connect - %s" % self.identity, dialect="lldb")
+        rs_log("sync is now enabled with host %s" % host)
         return True
 
     def initialize(self, host):
@@ -230,7 +261,7 @@ class Sync(object):
         if not self.process.is_alive:
             return
         uid = self.process.GetUniqueID()
-        if not uid in self._pcache:
+        if uid not in self._pcache:
             # Init per process cache
             self._pcache[uid] = {}
             pinfo = self._pcache[uid]
@@ -240,7 +271,7 @@ class Sync(object):
             thread = EventHandlerThread(self)
             pinfo["thread"] = thread
             thread.start()
-            print "[sync] event handler started"
+            rs_log("event handler started")
 
         self._locate(self.process)
 
@@ -252,7 +283,7 @@ class Sync(object):
             return
         cmd = "[%s]" % CMD_CLS.get(clas, None)
         if not cmd:
-            print "Invalid command class"
+            rs_log("Invalid command class")
             return
         args = {"type": typ}
         args.update(kwargs)
@@ -263,7 +294,7 @@ class Sync(object):
 def getSync(session):
     sync = session.get("_sync", None)
     if not sync:
-        print "Internal error: _sync not found"
+        rs_log("Internal error: _sync not found")
         sys.exit(1)
     return sync
 
@@ -282,11 +313,11 @@ def loadConfig():
 
     for confpath in locations:
         if os.path.exists(confpath):
-            config = ConfigParser.SafeConfigParser({'host': HOST, 'port': PORT})
+            config = ConfigParser({'host': HOST, 'port': PORT})
             config.read(confpath)
             HOST = config.get("INTERFACE", 'host')
             PORT = config.getint("INTERFACE", 'port')
-            print "[sync] configuration file loaded %s:%s" % (HOST, PORT)
+            rs_log("configuration file loaded %s:%s" % (HOST, PORT))
             break
 
 
@@ -311,14 +342,14 @@ def sync(debugger, command, result, session):
 def syncoff(debugger, command, result, session):
     sc = getSync(session)
     sc.reset()
-    print "[sync] sync is now disabled"
+    rs_log("sync is now disabled")
 
 
 @lldb.command("bc", "Enable / disable path coloring in IDA")
 def bc(debugger, command, result, session):
     sc = getSync(session)
     if not sc.running():
-        print "[sync] process is not running, command is dropped"
+        rs_log("process is not running, command is dropped")
         return
 
     args = command.split()
@@ -328,7 +359,7 @@ def bc(debugger, command, result, session):
         arg = "oneshot"
 
     if not (arg in ["on", "off", "oneshot"]):
-        print "[sync] usage: bc <|on|off>"
+        rs_log("usage: bc <|on|off>")
         return
     pinfo = sc.procinfo()
     if not pinfo:
@@ -339,11 +370,11 @@ def bc(debugger, command, result, session):
 def addcmt(typ, debugger, command, result, session):
     sc = getSync(session)
     if not sc.running():
-        print "[sync] process is not running, command is dropped"
+        rs_log("process is not running, command is dropped")
         return
 
     if not command and typ != "rcmt":
-        print "[sync] usage: %s <cmt to add>" % typ
+        rs_log("usage: %s <cmt to add>" % typ)
         return
 
     pinfo = sc.procinfo()
@@ -371,11 +402,11 @@ def rcmt(debugger, command, result, session):
 def cmd(debugger, command, result, session):
     sc = getSync(session)
     if not sc.running():
-        print "[sync] process is not running, command is dropped"
+        rs_log("process is not running, command is dropped")
         return
 
     if not command:
-        print "[sync] need a command to execute"
+        rs_log("need a command to execute")
         return
 
     ci = sc._dbg.GetCommandInterpreter()
@@ -396,8 +427,8 @@ def cmd(debugger, command, result, session):
 
 @lldb.command("synchelp", "Print sync plugin help")
 def synchelp(debugger, command, result, session):
-    print (
-"""[sync] extension commands help:
+    rs_log(
+"""extension commands help:
  > sync <host>                   = synchronize with <host> or the default value
  > syncoff                       = stop synchronization
  > cmt <string>                  = add comment at current eip in IDA
